@@ -6,8 +6,10 @@ create a file named .env and put `DISCORD_TOKEN=<token>` in it
 install requirements ideally in a venv
 run main.py
 done
- 
+
 # Credits
 - ToxicAven for all of soupman
 - pycord devs
+- starlitskies for the autosoap script
+- lugioalma for cleaninty
 - probably more
