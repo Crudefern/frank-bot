@@ -3,7 +3,8 @@ import os
 import subprocess
 from dotenv import load_dotenv
 import discord
-
+from pyctr.type.exefs import ExeFSReader
+from io import BytesIO
 
 bot = discord.Bot()
 load_dotenv()
@@ -58,25 +59,32 @@ async def doasoap(
     except discord.errors.NotFound:
         return
 
-    if file.filename[-6:] == ".exefs":
-        local_file = open(f"./cleaninty/Latest/{file.filename}", mode="wb")
-        local_file.write(await file.read())
-        local_file.close()
-        script = subprocess.run(
-            ["/usr/bin/bash", "./cleaninty/Latest/autosoap.sh"],
-            capture_output=True,
-            text=True,
-        )
+    try:
+        exeFS = ExeFSReader(BytesIO(await file.read()))
+        if not "secinfo" and "otp" in exeFS.entries:
+            await ctx.respond(ephemeral=True, content="Invalid essential")
+            return
+    except Exception:
+        await ctx.respond(ephemeral=True, content="Invalid essential")
+        return
+
+    local_file = open(f"./cleaninty/Latest/{file.filename}", mode="wb")
+    local_file.write(await file.read())
+    local_file.close()
+
+    script = subprocess.run(
+        ["/usr/bin/bash", "./cleaninty/Latest/autosoap.sh"],
+        capture_output=True,
+        text=True,
+    )
+    await ctx.respond(
+        ephemeral=True, content=f"script stdout: ```\n{script.stdout}\n```"
+    )
+    if script.stderr != "":
         await ctx.respond(
-            ephemeral=True, content=f"script stdout: ```\n{script.stdout}\n```"
+            ephemeral=True,
+            content=f"script stderr (something borked): ```\n{script.stderr}\n```",
         )
-        if script.stderr != "":
-            await ctx.respond(
-                ephemeral=True,
-                content=f"script stderr (something borked): ```\n{script.stderr}\n```",
-            )
-    else:
-        await ctx.respond(ephemeral=True, content="not a .exefs!")
 
 
 @bot.slash_command(description="uploads a donor soap json")
