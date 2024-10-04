@@ -50,8 +50,9 @@ async def donorcheck(input_json):
     return 0
 
 
-@bot.slash_command(description="does a soap")
-async def doasoap(
+
+@bot.slash_command(description="does a soap but (should) actually work")
+async def doasoap_functional(
     ctx: discord.ApplicationContext, file: discord.Option(discord.Attachment)
 ):
     try:
@@ -68,12 +69,12 @@ async def doasoap(
         await ctx.respond(ephemeral=True, content="Invalid essential")
         return
 
-    local_file = open(f"./cleaninty/Latest/{file.filename}", mode="wb")
+    local_file = open(f"./scripts/Tempfiles/{file.filename}", mode="wb")
     local_file.write(await file.read())
     local_file.close()
 
     script = subprocess.run(
-        ["/usr/bin/bash", "./cleaninty/Latest/autosoap.sh"],
+        ["/usr/bin/bash", "./scripts/autosoap.sh"],
         capture_output=True,
         text=True,
     )
@@ -85,6 +86,32 @@ async def doasoap(
             ephemeral=True,
             content=f"script stderr (something borked): ```\n{script.stderr}\n```",
         )
+
+
+
+@bot.slash_command(description="attempts to un-jank things")
+async def unjank(ctx: discord.ApplicationContext):
+    try:
+        await ctx.defer(ephemeral=True)
+    except discord.errors.NotFound:
+        return
+
+    try:
+        os.remove("./scripts/Tempfiles/*.json")
+    except Exception:
+        pass
+
+    try:
+        os.remove("./scripts/Tempfiles/*.exefs")
+    except Exception:
+        pass
+
+    try:
+        os.remove("./scripts/Tempfiles/*.bin")
+    except Exception:
+        pass
+    print("hola")
+    await ctx.respond(ephemeral=True, content="Done!")
 
 
 @bot.slash_command(description="uploads a donor soap json")
@@ -169,4 +196,6 @@ async def on_ready():
 
 
 bot.load_extension("cogs.soupman")
+bot.load_extension("cogs.doasoap")
+
 bot.run(os.getenv("DISCORD_TOKEN"))
