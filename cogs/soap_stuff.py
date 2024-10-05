@@ -7,8 +7,8 @@ from cleaninty.ctr.simpledevice import SimpleCtrDevice
 from cleaninty.ctr.soap.manager import CtrSoapManager
 from cleaninty.ctr.soap import helpers
 from cleaninty.nintendowifi.soapenvelopebase import SoapCodeError
-from .abstracters.cleaninty_abstractor import cleaninty_abstractor
-from .abstracters.db_abstracter import mySQL
+from .abstractors.cleaninty_abstractor import cleaninty_abstractor
+from .abstractors.db_abstractor import mySQL
 
 
 class cleaninty_stuff(
@@ -36,20 +36,20 @@ class cleaninty_stuff(
 
         resultStr = "```"
 
-        mySQL_DB = mySQL()
+        myDB = mySQL()
 
         # <json stuff>
         try:
-            jsonStr = await jsonfile.read()
-            jsonStr = jsonStr.decode("utf-8")
-            json.loads(jsonStr)  # Validate the json, output useless
+            soap_json = await jsonfile.read()
+            soap_json = soap_json.decode("utf-8")
+            json.loads(soap_json)  # Validate the json, output useless
         except Exception:
             await ctx.respond(ephemeral=True, content="Failed to load json")
             return
         # </json stuff>
 
         try:
-            dev = SimpleCtrDevice(json_string=jsonStr)
+            dev = SimpleCtrDevice(json_string=soap_json)
             soapMan = CtrSoapManager(dev, False)
             helpers.CtrSoapCheckRegister(soapMan)
             cleaninty = cleaninty_abstractor()
@@ -59,8 +59,8 @@ class cleaninty_stuff(
             )
             return
 
-        jsonStr = dev.serialize_json()
-        json_object = json.loads(jsonStr)
+        soap_json = dev.serialize_json()
+        json_object = json.loads(soap_json)
         json_region = json_object["region"]
 
         if json_region == "USA":
@@ -74,31 +74,51 @@ class cleaninty_stuff(
 
         resultStr += "Attempting eShopRegionChange...\n"
         try:
-            jsonStr, resultStr = cleaninty.eshop_region_change(
-                json_string=jsonStr,
+            soap_json, resultStr = cleaninty.eshop_region_change(
+                json_string=soap_json,
                 region=region_change,
                 country=country_change,
                 language=language_change,
                 result_string=resultStr,
             )
-        except SoapCodeError:
-            pass
+
+        except SoapCodeError as err:
+            if not err.soaperrorcode == 602:
+                ctx.respond(ephemeral=True, content=f"uh oh...\n\n{err}")
+                return
+            donor_json_name, donor_json = myDB.get_donor_json_ready_for_transfer()
+            soap_json, donor_json, resultStr = cleaninty.do_system_transfer(
+                source_json=soap_json, donor_json=donor_json, result_string=resultStr
+            )
+            myDB.update_donor(donor_json_name, donor_json)
+            resultStr += f"`{donor_json_name}` is now on cooldown\nDone!"
+
+            helpers.CtrSoapCheckRegister(soapMan)
+            soap_json = clean_json(soap_json)
+
+            resultStr += "```"
+            await ctx.respond(
+                ephemeral=True,
+                content=resultStr,
+                file=discord.File(fp=StringIO(soap_json), filename=jsonfile.filename),
+            )
+
         else:
             resultStr += (
                 "\neShopRegionChange successful, attempting account deletion...\n"
             )
-            jsonStr, resultStr = cleaninty.delete_eshop_account(
-                json_string=jsonStr, result_string=resultStr
+            soap_json, resultStr = cleaninty.delete_eshop_account(
+                json_string=soap_json, result_string=resultStr
             )
 
         helpers.CtrSoapCheckRegister(soapMan)
-        jsonStr = clean_json(jsonStr)
+        soap_json = clean_json(soap_json)
 
         resultStr += "```"
         await ctx.respond(
             ephemeral=True,
             content=resultStr,
-            file=discord.File(fp=StringIO(jsonStr), filename=jsonfile.filename),
+            file=discord.File(fp=StringIO(soap_json), filename=jsonfile.filename),
         )
         # do stuff with soapman
 
@@ -120,38 +140,36 @@ class cleaninty_stuff(
     async def uploaddonorsoapjson(
         self,
         ctx: discord.ApplicationContext,
-        donor_json: discord.Option(discord.Attachment),
+        donor_json_file: discord.Option(discord.Attachment),
     ):
         try:
             await ctx.defer(ephemeral=True)
         except discord.errors.NotFound:
             return
 
-        if not donor_json.filename[-5:] == ".json":
+        if not donor_json_file.filename[-5:] == ".json":
             await ctx.respond(ephemeral=True, content="not a .json!")
             return
 
         try:
-            jsonStr = await donor_json.read()
-            jsonStr = jsonStr.decode("utf-8")
-            json.loads(jsonStr)  # Validate the json, output useless
+            donor_json = await donor_json_file.read()
+            donor_json = donor_json.decode("utf-8")
+            json.loads(donor_json)  # Validate the json, output useless
         except Exception:
             await ctx.respond(ephemeral=True, content="Failed to load json")
             return
 
-        if donorcheck(jsonStr):
+        if donorcheck(donor_json):
             await ctx.respond(
                 ephemeral=True,
                 content="not a valid donor .json!\nif you believe this to be a mistake contact crudefern",
             )
             return
 
-        donor_json_obj = json.loads(jsonStr)
-        del donor_json_obj["titles"]
-        jsonStr = json.dumps(donor_json_obj)
+        donor_json = clean_json(donor_json)
 
         mySQL_DB = mySQL()
-        mySQL_DB.write_donor(donor_json.filename, jsonStr)
+        mySQL_DB.write_donor(donor_json.filename, donor_json)
 
         await ctx.respond(
             ephemeral=True,
