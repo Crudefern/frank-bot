@@ -41,8 +41,7 @@ class cleaninty_abstractor:
             if e.soaperrorcode == 602:
                 result_string += "soap error 602...\n"
                 helpers.CtrSoapCheckRegister(soap_device)
-                return device.serialize_json(), result_string
-            raise
+                raise
 
         helpers.CtrSoapCheckRegister(soap_device)
 
@@ -110,13 +109,13 @@ class cleaninty_abstractor:
             True,
         )
 
-        result_string += "Performing (not a real) transfer...\n"
+        result_string += "Performing (a real!) transfer...\n"
         ias.MoveAccount(
             soap_source,
             soap_target.device_id,
             soap_target.account_id,
             soap_target.st_token,
-            True,  # set to false to actually do a transfer
+            False,
         )
 
         result_string += "System transfer complete!"

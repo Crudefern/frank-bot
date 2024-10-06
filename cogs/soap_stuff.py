@@ -1,6 +1,5 @@
 import discord
 import json
-import subprocess
 from io import StringIO
 from discord.ext import commands
 from cleaninty.ctr.simpledevice import SimpleCtrDevice
@@ -21,9 +20,7 @@ class cleaninty_stuff(
     ):  # this is a special method that is called when the cog is loaded
         self.bot = bot
 
-    @discord.slash_command(
-        description="does a soap (it actually doesn't right now, do not use)"
-    )
+    @discord.slash_command(description="does a soap")
     async def doasoap(
         self,
         ctx: discord.ApplicationContext,
@@ -87,7 +84,7 @@ class cleaninty_stuff(
                 ctx.respond(ephemeral=True, content=f"uh oh...\n\n{err}")
                 return
 
-            resultStr += "eShopRegionChange failed! running system transfer..."
+            resultStr += "eShopRegionChange failed! running system transfer...\n"
             donor_json_name, donor_json = myDB.get_donor_json_ready_for_transfer()
             donor_json_object = json.loads(donor_json)
 
@@ -115,13 +112,6 @@ class cleaninty_stuff(
             helpers.CtrSoapCheckRegister(soapMan)
             soap_json = clean_json(soap_json)
 
-            resultStr += "```"
-            await ctx.respond(
-                ephemeral=True,
-                content=resultStr,
-                file=discord.File(fp=StringIO(soap_json), filename=jsonfile.filename),
-            )
-
         else:
             resultStr += (
                 "eShopRegionChange successful, attempting account deletion...\n"
@@ -148,10 +138,21 @@ class cleaninty_stuff(
         except discord.errors.NotFound:
             return
 
-        availability = subprocess.run(
-            ["/usr/bin/bash", "./scripts/soapcheck.sh"], capture_output=True, text=True
+        myDB = mySQL()
+        donors = myDB.read_table(table="donors")
+
+        embed = discord.Embed(
+            title="SOAP check",
+            description="Checks what SOAP donors are available",
+            color=discord.Color.blurple(), 
         )
-        await ctx.respond(ephemeral=True, content=f"```\n{availability.stdout}\n```")
+
+        for i in range(len(donors)):
+            name = donors[i][0]
+            last_transfer = donors[i][2]
+            embed.add_field(name=f"{name}", value=f"<t:{last_transfer + 604800}:R>")
+
+        await ctx.respond(ephemeral=True, embed=embed)
 
     @discord.slash_command(
         description="uploads a donor soap json to be used for future soaps"

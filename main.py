@@ -2,8 +2,7 @@ import os
 import subprocess
 from dotenv import load_dotenv
 import discord
-from pyctr.type.exefs import ExeFSReader
-from io import BytesIO
+
 
 bot = discord.Bot()
 load_dotenv()
@@ -29,43 +28,6 @@ fatfserrlist = (
     "FR_NOT_ENOUGH_CORE    /* (17) LFN working buffer could not be allocated */",
     "FR_TOO_MANY_OPEN_FILES    /* (18) Number of open files > FF_FS_LOCK */",
 )
-
-
-@bot.slash_command(description="does a soap but (should) actually work")
-async def doasoap_functional(
-    ctx: discord.ApplicationContext, file: discord.Option(discord.Attachment)
-):
-    try:
-        await ctx.defer(ephemeral=True)
-    except discord.errors.NotFound:
-        return
-
-    try:
-        exeFS = ExeFSReader(BytesIO(await file.read()))
-        if not "secinfo" and "otp" in exeFS.entries:
-            await ctx.respond(ephemeral=True, content="Invalid essential")
-            return
-    except Exception:
-        await ctx.respond(ephemeral=True, content="Invalid essential")
-        return
-
-    local_file = open(f"./scripts/Tempfiles/{file.filename}", mode="wb")
-    local_file.write(await file.read())
-    local_file.close()
-
-    script = subprocess.run(
-        ["/usr/bin/bash", "./scripts/autosoap.sh"],
-        capture_output=True,
-        text=True,
-    )
-    await ctx.respond(
-        ephemeral=True, content=f"script stdout: ```\n{script.stdout}\n```"
-    )
-    if script.stderr != "":
-        await ctx.respond(
-            ephemeral=True,
-            content=f"script stderr (something borked): ```\n{script.stderr}\n```",
-        )
 
 
 @bot.slash_command(description="check system health")

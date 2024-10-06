@@ -50,7 +50,7 @@ class mySQL:
 
     def get_donor_json_ready_for_transfer(self):
         utc_time = datetime.datetime.now(datetime.UTC)
-        utc_time_ready_for_transfer = int(utc_time.timestamp()) - 605000
+        utc_time_ready_for_transfer = int(utc_time.timestamp()) - 604800
 
         try:
             self.cursor.fetchall()
@@ -85,3 +85,13 @@ class mySQL:
             return
 
         return self.cursor.fetchone()
+
+    def read_table(self, table):
+        try:
+            self.cursor.fetchall()
+        except Exception:
+            pass
+
+        self.cursor.execute(f"SELECT * FROM {table}")
+
+        return self.cursor.fetchall()
