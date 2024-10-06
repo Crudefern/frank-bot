@@ -1,10 +1,8 @@
-import json
 import os
 import subprocess
 from dotenv import load_dotenv
 import discord
-from pyctr.type.exefs import ExeFSReader
-from io import BytesIO
+
 
 bot = discord.Bot()
 load_dotenv()
@@ -32,101 +30,6 @@ fatfserrlist = (
 )
 
 
-async def donorcheck(input_json):
-    """Checks for a valid donor .json as input"""
-    try:
-        input_json = json.loads(input_json)
-    except json.decoder.JSONDecodeError:
-        return 1
-
-    if len(input_json["otp"]) != 344:
-        return 1
-    if len(input_json["msed"]) != 428:
-        return 1
-    if len(input_json["ecommerce_info"]["st_token"]) != 21:
-        return 1
-    if len(input_json["region"]) != 3:
-        return 1
-    return 0
-
-
-@bot.slash_command(description="does a soap")
-async def doasoap(
-    ctx: discord.ApplicationContext, file: discord.Option(discord.Attachment)
-):
-    try:
-        await ctx.defer(ephemeral=True)
-    except discord.errors.NotFound:
-        return
-
-    try:
-        exeFS = ExeFSReader(BytesIO(await file.read()))
-        if not "secinfo" and "otp" in exeFS.entries:
-            await ctx.respond(ephemeral=True, content="Invalid essential")
-            return
-    except Exception:
-        await ctx.respond(ephemeral=True, content="Invalid essential")
-        return
-
-    local_file = open(f"./cleaninty/Latest/{file.filename}", mode="wb")
-    local_file.write(await file.read())
-    local_file.close()
-
-    script = subprocess.run(
-        ["/usr/bin/bash", "./cleaninty/Latest/autosoap.sh"],
-        capture_output=True,
-        text=True,
-    )
-    await ctx.respond(
-        ephemeral=True, content=f"script stdout: ```\n{script.stdout}\n```"
-    )
-    if script.stderr != "":
-        await ctx.respond(
-            ephemeral=True,
-            content=f"script stderr (something borked): ```\n{script.stderr}\n```",
-        )
-
-
-@bot.slash_command(description="uploads a donor soap json")
-async def uploaddonorsoapjson(
-    ctx: discord.ApplicationContext, donor_json: discord.Option(discord.Attachment)
-):
-    try:
-        await ctx.defer(ephemeral=True)
-    except discord.errors.NotFound:
-        return
-
-    if not donor_json.filename[-5:] == ".json":
-        await ctx.respond(ephemeral=True, content="not a .json!")
-        return 0
-    if not await donorcheck(await donor_json.read()):
-        local_donor_json = open(f"./cleaninty/Donors/{donor_json.filename}", mode="wb")
-        local_donor_json.write(await donor_json.read())
-        local_donor_json.close()
-        await ctx.respond(
-            ephemeral=True,
-            content=f"`{donor_json.filename}` has been uploaded to the donor json pool\nif you would like to remove this file from the pool contact crudefern",
-        )
-    else:
-        await ctx.respond(
-            ephemeral=True,
-            content="not a valid donor .json!\nif you believe this to be a mistake contact crudefern",
-        )
-
-
-@bot.slash_command(description="check soap donor availability")
-async def soapcheck(ctx: discord.ApplicationContext):
-    try:
-        await ctx.defer(ephemeral=True)
-    except discord.errors.NotFound:
-        return
-
-    availability = subprocess.run(
-        ["/usr/bin/bash", "./scripts/soapcheck.sh"], capture_output=True, text=True
-    )
-    await ctx.respond(ephemeral=True, content=f"```\n{availability.stdout}\n```")
-
-
 @bot.slash_command(description="check system health")
 async def healthcheck(ctx: discord.ApplicationContext):
     try:
@@ -150,8 +53,9 @@ async def fatfserr(
     except discord.errors.NotFound:
         return
     try:
-        fatfserr = fatfserrlist[int(input.lstrip("-"))]
-        await ctx.respond(ephemeral=True, content=f"`{fatfserr}`")
+        await ctx.respond(
+            ephemeral=True, content=f"`{fatfserrlist[int(input.lstrip('-'))]}`"
+        )
     except (IndexError, ValueError):
         await ctx.respond(ephemeral=True, content="invalid or unknown value")
 
@@ -169,4 +73,6 @@ async def on_ready():
 
 
 bot.load_extension("cogs.soupman")
+bot.load_extension("cogs.soap_stuff")
+
 bot.run(os.getenv("DISCORD_TOKEN"))

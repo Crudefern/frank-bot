@@ -4,9 +4,6 @@
 # Takes three parameters. $1 (string): Command to be executed. $2 (string): Description of command's purpose. $3 (bool): Whether or not to halt on failure.
 rm -rf *Zone.Identifier
 
-# comment if using script outside of bot
-cd /generictestbot/cleaninty/Latest 
-
 check_catch_counter() {
     local exit_on_fail
     exit_on_fail=${3:-1} # Always halt on errors unless manually specified
@@ -28,18 +25,18 @@ check_catch_counter() {
         return 0
     fi
 }
-latestexefs=$(ls ./*.exefs)
+latestexefs=$(ls ./Tempfiles/*.exefs)
 latestexefs=${latestexefs:2}
 latestjson=${latestexefs:0:-6}.json
-dd if="$latestexefs" of="otp.bin" bs=1 skip=3072 count=256 status=none
-dd if="$latestexefs" of="secinfo.bin" bs=1 skip=1024 count=273 status=none
-check_catch_counter "cleaninty ctr GenJson --otp otp.bin --secureinfo secinfo.bin --region JPN --country jp --out $latestjson" "Compiling a json from $latestexefs" "1"
+dd if="$latestexefs" of="./Tempfiles/otp.bin" bs=1 skip=3072 count=256 status=none
+dd if="$latestexefs" of="./Tempfiles/secinfo.bin" bs=1 skip=1024 count=273 status=none
+check_catch_counter "cleaninty ctr GenJson --otp ./Tempfiles/otp.bin --secureinfo ./Tempfiles/secinfo.bin --region JPN --country jp --out $latestjson" "Compiling a json from $latestexefs" "1"
 check_catch_counter "cleaninty ctr CheckReg --console $latestjson" "Checking $latestjson's eShop data" "1"
 jsonregion=$(grep -oP '(?<="region": ")[A-Z]{3}(?=",)' <"$latestjson")
 jsoncountry=$(grep -oP '(?<="country": ")[A-Z]{2}(?=",)' <"$latestjson")
 jsonlanguage=$(grep -oP '(?<="language": ")[a-z]{2}(?=",)' <"$latestjson")
 echo "Current JSON's region: $jsonregion"
-rm -f otp.bin secinfo.bin
+rm -f ./Tempfiles/otp.bin ./Tempfiles/secinfo.bin
 
 if [[ "$jsonregion" == "USA" ]]; then
     regionchange=JPN
@@ -61,18 +58,9 @@ if cleaninty ctr EShopRegionChange --console "$latestjson" --region "$regionchan
     echo "SOAP Transfer complete!"
     echo "This console can perform a System Transfer immediately."
     check_catch_counter "cleaninty ctr EShopDelete --console $latestjson" "Deleting $latestjson's eShop account" "1"
-    if ! mv -f "$latestjson" ../Recipients; then
-        echo "Recipients folder not found. Creating it now..."
-        mkdir ../Recipients
-        mv -f "$latestjson" ../Recipients
-    fi
-    if ! mv -f "$latestexefs" ../Recipients/exefs_archive; then
-        mkdir ../Recipients/exefs_archive
-        mv -f "$latestexefs" ../Recipients/exefs_archive
-    fi
     exit 0
 else
-    printf "\n\n\n\nRegion change failed. A system transfer is required.\n"
+    printf "\n\n\nRegion change failed. A system transfer is required.\n"
     if ! cd ../Donors; then
         echo "Donors folder not found. Please obtain the lamb sauce and files from donor consoles, then try again."
         exit 1
@@ -103,31 +91,14 @@ else
         fi
     done
     if [[ "$autodonorchoice" != "none" ]]; then
-        cd ../Latest || exit 1
-        check_catch_counter "cleaninty ctr SysTransfer --source $latestjson --target ../Donors/$autodonorchoice" "Transferring from $latestjson to $autodonorchoice" "1"
+        cd ../scripts/Tempfiles || exit 1
+        check_catch_counter "cleaninty ctr SysTransfer --source $latestjson --target ../../Donors/$autodonorchoice" "Transferring from $latestjson to $autodonorchoice" "1"
         echo "SOAP Transfer complete! System Transfer cooldown now active."
         cooldownexpiredate=$(date -d "+ 7 days" -u +"%a, %d %b %Y %T UTC")
         echo "This console can do its next System Transfer at $cooldownexpiredate."
-        if ! mv -f "$latestjson" ../Recipients; then
-            echo "Recipients folder not found. Creating it now..."
-            mkdir ../Recipients
-            mv -f "$latestjson" ../Recipients
-        fi
-        if ! mv -f "$latestexefs" ../Recipients/exefs_archive; then
-            mkdir ../Recipients/exefs_archive
-            mv -f "$latestexefs" ../Recipients/exefs_archive
-        fi
         exit 0
     else
         echo "All donors are currently on cooldown. Please find the lamb sauce and try again later."
         exit 2
     fi
 fi
-
-
-for i in ../Recipients/exefs_archive/*.exefs; do
-    rm -f $i
-done
-for i in ../Recipients/*.json; do
-    rm -f $i
-done

@@ -6,6 +6,7 @@ create a file named .env and put `DISCORD_TOKEN=<token>` in it
 install requirements ideally in a venv
 run main.py
 done
+oh and don't forget the DB stuff
 
 # Credits
 - ToxicAven for all of soupman
