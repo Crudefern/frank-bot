@@ -60,25 +60,25 @@ class cleaninty_stuff(
             return
 
         soap_json = dev.serialize_json()
-        json_object = json.loads(soap_json)
-        json_region = json_object["region"]
+        source_json_object = json.loads(soap_json)
+        source_json_region = source_json_object["region"]
 
-        if json_region == "USA":
-            region_change = "JPN"
-            country_change = "JP"
-            language_change = "ja"
+        if source_json_region == "USA":
+            source_region_change = "JPN"
+            source_country_change = "JP"
+            source_language_change = "ja"
         else:
-            region_change = "USA"
-            country_change = "US"
-            language_change = "en"
+            source_region_change = "USA"
+            source_country_change = "US"
+            source_language_change = "en"
 
-        resultStr += "Attempting eShopRegionChange...\n"
+        resultStr += "Attempting eShopRegionChange on source...\n"
         try:
             soap_json, resultStr = cleaninty.eshop_region_change(
                 json_string=soap_json,
-                region=region_change,
-                country=country_change,
-                language=language_change,
+                region=source_region_change,
+                country=source_country_change,
+                language=source_language_change,
                 result_string=resultStr,
             )
 
@@ -86,10 +86,29 @@ class cleaninty_stuff(
             if not err.soaperrorcode == 602:
                 ctx.respond(ephemeral=True, content=f"uh oh...\n\n{err}")
                 return
+
+            resultStr += "eShopRegionChange failed! running system transfer..."
             donor_json_name, donor_json = myDB.get_donor_json_ready_for_transfer()
+            donor_json_object = json.loads(donor_json)
+
+            donor_region_change = source_json_object["region"]
+            donor_country_change = source_json_object["country"]
+            donor_language_change = source_json_object["language"]
+
+            if donor_json_object["region"] != source_json_object["region"]:
+                resultStr += "Source and target regions do not match, changing...\n"
+                donor_json, resultStr = cleaninty.eshop_region_change(
+                    json_string=donor_json,
+                    region=donor_region_change,
+                    country=donor_country_change,
+                    language=donor_language_change,
+                    result_string=resultStr,
+                )
+
             soap_json, donor_json, resultStr = cleaninty.do_system_transfer(
                 source_json=soap_json, donor_json=donor_json, result_string=resultStr
             )
+            donor_json = clean_json(donor_json)
             myDB.update_donor(donor_json_name, donor_json)
             resultStr += f"`{donor_json_name}` is now on cooldown\nDone!"
 
@@ -105,7 +124,7 @@ class cleaninty_stuff(
 
         else:
             resultStr += (
-                "\neShopRegionChange successful, attempting account deletion...\n"
+                "eShopRegionChange successful, attempting account deletion...\n"
             )
             soap_json, resultStr = cleaninty.delete_eshop_account(
                 json_string=soap_json, result_string=resultStr
@@ -114,7 +133,7 @@ class cleaninty_stuff(
         helpers.CtrSoapCheckRegister(soapMan)
         soap_json = clean_json(soap_json)
 
-        resultStr += "```"
+        resultStr += "Done!\n```"
         await ctx.respond(
             ephemeral=True,
             content=resultStr,
@@ -169,18 +188,21 @@ class cleaninty_stuff(
         donor_json = clean_json(donor_json)
 
         mySQL_DB = mySQL()
-        mySQL_DB.write_donor(donor_json.filename, donor_json)
+        mySQL_DB.write_donor(name=donor_json_file.filename, json=donor_json)
 
         await ctx.respond(
             ephemeral=True,
-            content=f"`{donor_json.filename}` has been uploaded to the donor database\nwant to remove it? contact crudefern",
+            content=f"`{donor_json_file.filename}` has been uploaded to the donor database\nwant to remove it? contact crudefern",
         )
 
 
 def clean_json(json_string):
     json_object = json.loads(json_string)
-    del json_object["titles"]
-    return json.dumps(json_string, indent=2)
+    try:
+        del json_object["titles"]
+    except Exception:
+        pass
+    return json.dumps(json_object)
 
 
 def donorcheck(input_json):
