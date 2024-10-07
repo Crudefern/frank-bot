@@ -52,6 +52,7 @@ async def fatfserr(
         await ctx.defer(ephemeral=True)
     except discord.errors.NotFound:
         return
+    
     try:
         await ctx.respond(
             ephemeral=True, content=f"`{fatfserrlist[int(input.lstrip('-'))]}`"
@@ -62,8 +63,7 @@ async def fatfserr(
 
 @bot.event
 async def on_ready():
-    """Starts bot"""
-    print(f"We have logged in as {bot.user}")
+    print(f"Logged in as {bot.user} successfully!")
     print(
         discord.utils.oauth_url(
             bot.user.id, permissions=discord.Permissions(permissions=2147518464)

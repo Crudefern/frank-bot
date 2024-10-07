@@ -18,9 +18,17 @@ class soupman(commands.Cog):
         ctx: discord.ApplicationContext,
         secinfo: discord.Option(discord.Attachment, "secinfo.bin, SecureInfo_A"),
         otp: discord.Option(discord.Attachment, "otp.bin"),
-        country: discord.Option(str, "Required for U and E regions", required=False),
     ):
         await ctx.defer(ephemeral=True)
+
+        secinfo.seek(0x100)
+        country_byte = secinfo.read(1)
+        secinfo.seek(0, 1)  # reset secinfo.seek to avoid possible issues
+
+        if country_byte == b"\x01":
+            country = "US"
+        elif country_byte == b"\x02":
+            country = "GB"
 
         try:
             soapJson = SimpleCtrDevice.generate_new_json(
@@ -52,7 +60,6 @@ class soupman(commands.Cog):
         self,
         ctx: discord.ApplicationContext,
         essential: discord.Option(discord.Attachment, "essential.exefs"),
-        country: discord.Option(str, "Required for U and E regions", required=False),
     ):
         await ctx.defer(ephemeral=True)
 
@@ -65,6 +72,16 @@ class soupman(commands.Cog):
         if not "secinfo" and "otp" in reader.entries:
             await ctx.respond(ephemeral=True, content="Invalid essential")
             return
+
+        secinfo = reader.open("secinfo")
+        secinfo.seek(0x100)
+        country_byte = secinfo.read(1)
+        secinfo.seek(0, 1)  # reset secinfo.seek to avoid possible issues
+
+        if country_byte == b"\x01":
+            country = "US"
+        elif country_byte == b"\x02":
+            country = "GB"
 
         try:
             soapJson = SimpleCtrDevice.generate_new_json(

@@ -1,11 +1,12 @@
 import discord
 import json
-from io import StringIO
+from io import BytesIO, StringIO
 from discord.ext import commands
 from cleaninty.ctr.simpledevice import SimpleCtrDevice
 from cleaninty.ctr.soap.manager import CtrSoapManager
 from cleaninty.ctr.soap import helpers
 from cleaninty.nintendowifi.soapenvelopebase import SoapCodeError
+from pyctr.type.exefs import ExeFSReader
 from .abstractors.cleaninty_abstractor import cleaninty_abstractor
 from .abstractors.db_abstractor import mySQL
 
@@ -24,7 +25,7 @@ class cleaninty_stuff(
     async def doasoap(
         self,
         ctx: discord.ApplicationContext,
-        jsonfile: discord.Option(discord.Attachment),
+        essentialexefs: discord.Option(discord.Attachment),
     ):
         try:
             await ctx.defer(ephemeral=True)
@@ -35,15 +36,11 @@ class cleaninty_stuff(
 
         myDB = mySQL()
 
-        # <json stuff>
         try:
-            soap_json = await jsonfile.read()
-            soap_json = soap_json.decode("utf-8")
-            json.loads(soap_json)  # Validate the json, output useless
-        except Exception:
-            await ctx.respond(ephemeral=True, content="Failed to load json")
+            soap_json = generate_json(await essentialexefs.read())
+        except Exception as e:
+            await ctx.respond(ephemeral=True, content=f"Failed to load essential\n{e}")
             return
-        # </json stuff>
 
         try:
             dev = SimpleCtrDevice(json_string=soap_json)
@@ -127,9 +124,8 @@ class cleaninty_stuff(
         await ctx.respond(
             ephemeral=True,
             content=resultStr,
-            file=discord.File(fp=StringIO(soap_json), filename=jsonfile.filename),
+            file=discord.File(fp=StringIO(soap_json), filename=essentialexefs.filename),
         )
-        # do stuff with soapman
 
     @discord.slash_command(description="check soap donor availability")
     async def soapcheck(self, ctx: discord.ApplicationContext):
@@ -144,7 +140,7 @@ class cleaninty_stuff(
         embed = discord.Embed(
             title="SOAP check",
             description="Checks what SOAP donors are available",
-            color=discord.Color.blurple(), 
+            color=discord.Color.blurple(),
         )
 
         for i in range(len(donors)):
@@ -154,35 +150,54 @@ class cleaninty_stuff(
 
         await ctx.respond(ephemeral=True, embed=embed)
 
-    @discord.slash_command(
-        description="uploads a donor soap json to be used for future soaps"
-    )
-    async def uploaddonorsoapjson(
+    @discord.slash_command(description="uploads a donor to be used for future soaps")
+    async def uploaddonortodb(
         self,
         ctx: discord.ApplicationContext,
-        donor_json_file: discord.Option(discord.Attachment),
+        donor_json_file: discord.Option(discord.Attachment, required=False),
+        donor_exefs_file: discord.Option(discord.Attachment, required=False),
     ):
         try:
             await ctx.defer(ephemeral=True)
         except discord.errors.NotFound:
             return
 
-        if not donor_json_file.filename[-5:] == ".json":
-            await ctx.respond(ephemeral=True, content="not a .json!")
-            return
+        if donor_exefs_file is not None:
+            if not donor_exefs_file.filename[-6:] == ".exefs":
+                await ctx.respond(ephemeral=True, content="not a .exefs!")
+                return
+            try:
+                donor_json = generate_json(essential=await donor_exefs_file.read())
+            except Exception as e:
+                await ctx.respond(ephemeral=True, content=e)
+                return
 
-        try:
-            donor_json = await donor_json_file.read()
-            donor_json = donor_json.decode("utf-8")
-            json.loads(donor_json)  # Validate the json, output useless
-        except Exception:
-            await ctx.respond(ephemeral=True, content="Failed to load json")
+
+        elif donor_json_file is not None:
+            if not donor_json_file.filename[-5:] == ".json":
+                await ctx.respond(ephemeral=True, content="not a .json!")
+                return
+
+            try:
+                donor_json = await donor_json_file.read()
+                donor_json = donor_json.decode("utf-8")
+                json.loads(donor_json)  # Validate the json, output useless
+
+            except Exception:
+                await ctx.respond(ephemeral=True, content="Failed to load json")
+                return
+
+        else:
+            await ctx.respond(
+                ephemeral=True,
+                content="uh... what? you didn't send a .json or .exefs, try again",
+            )
             return
 
         if donorcheck(donor_json):
             await ctx.respond(
                 ephemeral=True,
-                content="not a valid donor .json!\nif you believe this to be a mistake contact crudefern",
+                content="not a valid donor!\nif you believe this to be a mistake contact crudefern",
             )
             return
 
@@ -220,6 +235,38 @@ def donorcheck(input_json):
     if len(input_json_obj["region"]) != 3:
         return 1
     return 0
+
+
+def generate_json(  # thanks soupman
+    essential,
+):
+    try:
+        reader = ExeFSReader(BytesIO(essential))
+    except Exception:
+        raise Exception("Failed to read essential")
+
+    if not "secinfo" and "otp" in reader.entries:
+        raise Exception("Invalid essential")
+
+    secinfo = reader.open("secinfo")
+    secinfo.seek(0x100)
+    country_byte = secinfo.read(1)
+
+    if country_byte == b"\x01":
+        country = "US"
+    elif country_byte == b"\x02":
+        country = "GB"
+
+    try:
+        generated_json = SimpleCtrDevice.generate_new_json(
+            otp_data=reader.open("otp").read(),
+            secureinfo_data=reader.open("secinfo").read(),
+            country=country,
+        )
+    except Exception as e:
+        raise Exception(f"Cleaninty error:\n```\n{e}\n```")
+
+    return generated_json
 
 
 def setup(bot):
