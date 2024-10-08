@@ -21,9 +21,10 @@ class soupman(commands.Cog):
     ):
         await ctx.defer(ephemeral=True)
 
-        secinfo.seek(0x100)
-        country_byte = secinfo.read(1)
-        secinfo.seek(0, 1)  # reset secinfo.seek to avoid possible issues
+        secinfo_bytes = BytesIO(await secinfo.read())
+        secinfo_bytes.seek(0x100)
+        country_byte = secinfo_bytes.read(1)
+        secinfo_bytes.close()
 
         if country_byte == b"\x01":
             country = "US"

@@ -31,7 +31,7 @@ class cleaninty_stuff(
             await ctx.defer(ephemeral=True)
         except discord.errors.NotFound:
             return
-
+        print("doing soap, do not exit...")
         resultStr = "```"
 
         myDB = mySQL()
@@ -40,6 +40,7 @@ class cleaninty_stuff(
             soap_json = generate_json(await essentialexefs.read())
         except Exception as e:
             await ctx.respond(ephemeral=True, content=f"Failed to load essential\n{e}")
+            print("done")
             return
 
         try:
@@ -51,6 +52,7 @@ class cleaninty_stuff(
             await ctx.respond(
                 ephemeral=True, content=f"Cleaninty error:\n```\n{e}\n```"
             )
+            print("done")
             return
 
         soap_json = dev.serialize_json()
@@ -79,6 +81,7 @@ class cleaninty_stuff(
         except SoapCodeError as err:
             if not err.soaperrorcode == 602:
                 ctx.respond(ephemeral=True, content=f"uh oh...\n\n{err}")
+                print("done")
                 return
 
             resultStr += "eShopRegionChange failed! running system transfer...\n"
@@ -113,13 +116,20 @@ class cleaninty_stuff(
             resultStr += (
                 "eShopRegionChange successful, attempting account deletion...\n"
             )
-            soap_json, resultStr = cleaninty.delete_eshop_account(
-                json_string=soap_json, result_string=resultStr
-            )
-
+            try:
+                soap_json, resultStr = cleaninty.delete_eshop_account(
+                    json_string=soap_json, result_string=resultStr
+                )
+            except Exception as err:
+                await ctx.respond(
+                    ephemeral=True, content=f"account deletion failed\n{err}"
+                )
+                print("done")
+                return
         helpers.CtrSoapCheckRegister(soapMan)
         soap_json = clean_json(soap_json)
 
+        print("done")
         resultStr += "Done!\n```"
         await ctx.respond(
             ephemeral=True,
@@ -171,7 +181,6 @@ class cleaninty_stuff(
             except Exception as e:
                 await ctx.respond(ephemeral=True, content=e)
                 return
-
 
         elif donor_json_file is not None:
             if not donor_json_file.filename[-5:] == ".json":
