@@ -2,10 +2,9 @@ import mysql.connector
 import os
 import datetime
 from dotenv import load_dotenv
-from .cleaninty_abstractor import cleaninty_abstractor
 
 
-class mySQL:
+class the_db:
     def __init__(self):
         load_dotenv()
         self.connection = mysql.connector.connect(
@@ -21,37 +20,24 @@ class mySQL:
         self.connection.close()
         self.cursor.close()
 
-    def write_donor(self, name, json):
-        cleaninty = cleaninty_abstractor()
+    def write_donor(self, name, json, last_transferred, uploader):
+        sql = "INSERT INTO donors (name, json_data, last_transferred, uploader) VALUES (%s, %s, %s, %s)"
+        val = (name, json, last_transferred, uploader)
 
-        last_transferred = cleaninty.get_last_moved_time(json_string=json)
-
-        sql = (
-            "INSERT INTO donors (name, json_data, last_transferred) VALUES (%s, %s, %s)"
-        )
-        val = (name, json, last_transferred)
-
-        try:
-            self.cursor.execute(sql, val)
-        except mysql.connector.errors.IntegrityError:
-            return
+        self.cursor.execute(sql, val)
 
         self.connection.commit()
 
     def update_donor(self, name, json):
-        sql = "DELETE FROM donors WHERE name = %s"
-
-        try:
-            self.cursor.execute(sql, (name,))
-        except mysql.connector.errors.IntegrityError:
-            return
-
-        self.write_donor(name, json)
+        sql = "UPDATE donors SET json_data = %s WHERE name = %s"
+        self.cursor.execute(sql, (json, name))
+        self.connection.commit()
 
     def get_donor_json_ready_for_transfer(self):
         utc_time = datetime.datetime.now(datetime.UTC)
         utc_time_ready_for_transfer = int(utc_time.timestamp()) - 604800
-
+        
+        # this fixes something but i'm not sure what
         try:
             self.cursor.fetchall()
         except Exception:
@@ -71,6 +57,7 @@ class mySQL:
         return result[0], result[1]
 
     def read_index(self, table, index_field_name, index):
+        # this fixes something but i'm not sure what
         try:
             self.cursor.fetchall()
         except Exception:
@@ -79,19 +66,19 @@ class mySQL:
         sql = "SELECT * FROM %s WHERE %s = %s"
         val = (table, index_field_name, index)
 
-        try:
-            self.cursor.execute(sql, val)
-        except mysql.connector.errors.IntegrityError:
-            return
+        self.cursor.execute(sql, val)
 
         return self.cursor.fetchone()
 
-    def read_table(self, table):
+    def read_donor_table(self):
+        """ordered by last_transferred with the oldest coming first"""
+
+        # this fixes something but i'm not sure what
         try:
             self.cursor.fetchall()
         except Exception:
             pass
 
-        self.cursor.execute(f"SELECT * FROM {table}")
+        self.cursor.execute("SELECT * FROM donors ORDER BY last_transferred ASC")
 
         return self.cursor.fetchall()

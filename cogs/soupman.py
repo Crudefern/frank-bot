@@ -19,17 +19,22 @@ class soupman(commands.Cog):
         secinfo: discord.Option(discord.Attachment, "secinfo.bin, SecureInfo_A"),
         otp: discord.Option(discord.Attachment, "otp.bin"),
     ):
-        await ctx.defer(ephemeral=True)
-
+        try:
+            await ctx.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            return
+        print(f"{ctx.author} is generating a json from secinfo and otp...")
         secinfo_bytes = BytesIO(await secinfo.read())
         secinfo_bytes.seek(0x100)
         country_byte = secinfo_bytes.read(1)
         secinfo_bytes.close()
 
-        if country_byte == b"\x01":
-            country = "US"
+        if country_byte == b"\x00":
+            country = "JP"
         elif country_byte == b"\x02":
             country = "GB"
+        else:
+            country = None
 
         try:
             soapJson = SimpleCtrDevice.generate_new_json(
@@ -42,6 +47,7 @@ class soupman(commands.Cog):
                 ephemeral=True, content=f"Cleaninty error:\n```\n{e}\n```"
             )
             print(f"Cleaninty: {e}")
+            print(f"{ctx.author} has failed to generate a json from secinfo and otp")
             return
 
         try:
@@ -53,6 +59,7 @@ class soupman(commands.Cog):
             await ctx.respond(
                 ephemeral=True, content="Failed to respond with soap.json"
             )
+        print(f"{ctx.author} has successfully generated a json from secinfo and otp")
 
     @discord.slash_command(
         description="Generate a consoles soap key using essential.exefs (soupman)"
@@ -73,7 +80,7 @@ class soupman(commands.Cog):
         if not "secinfo" and "otp" in reader.entries:
             await ctx.respond(ephemeral=True, content="Invalid essential")
             return
-
+        print(f"{ctx.author} is generating a json from essential...")
         secinfo = reader.open("secinfo")
         secinfo.seek(0x100)
         country_byte = secinfo.read(1)
@@ -83,6 +90,8 @@ class soupman(commands.Cog):
             country = "US"
         elif country_byte == b"\x02":
             country = "GB"
+        else:
+            country = None
 
         try:
             soapJson = SimpleCtrDevice.generate_new_json(
@@ -95,6 +104,7 @@ class soupman(commands.Cog):
                 ephemeral=True, content=f"Cleaninty error:\n```\n{e}\n```"
             )
             print(f"Cleaninty: {e}")
+            print(f"{ctx.author} has failed to generate a json from essential")
             return
 
         try:
@@ -102,10 +112,12 @@ class soupman(commands.Cog):
                 ephemeral=True,
                 file=discord.File(fp=StringIO(soapJson), filename="soap.json"),
             )
+            
         except Exception:
             await ctx.respond(
                 ephemeral=True, content="Failed to respond with soap.json"
             )
+        print(f"{ctx.author} has successfully generated a json from essential")
 
     @discord.slash_command(description="check console registry (soupman)")
     async def checkreg(
@@ -113,7 +125,10 @@ class soupman(commands.Cog):
         ctx: discord.ApplicationContext,
         jsonfile: discord.Option(discord.Attachment, "soap.json"),
     ):
-        await ctx.defer(ephemeral=True)
+        try:
+            await ctx.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            return
 
         try:
             jsonStr = await jsonfile.read()
@@ -149,7 +164,10 @@ class soupman(commands.Cog):
         ctx: discord.ApplicationContext,
         infile: discord.Option(discord.Attachment, "essential.exefs or secinfo"),
     ):
-        await ctx.defer(ephemeral=True)
+        try:
+            await ctx.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            return
 
         try:
             data = await infile.read()

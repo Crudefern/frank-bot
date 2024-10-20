@@ -1,8 +1,11 @@
-import os
-import subprocess
-from dotenv import load_dotenv
+import datetime
 import discord
-
+import os
+from cleaninty.ctr.simpledevice import SimpleCtrDevice
+from cleaninty.ctr.soap.manager import CtrSoapManager
+from cleaninty.ctr.soap import helpers, ias
+from dotenv import load_dotenv
+from cogs.abstractors.db_abstractor import the_db
 
 bot = discord.Bot()
 load_dotenv()
@@ -30,19 +33,6 @@ fatfserrlist = (
 )
 
 
-@bot.slash_command(description="check system health")
-async def healthcheck(ctx: discord.ApplicationContext):
-    try:
-        await ctx.defer(ephemeral=True)
-    except discord.errors.NotFound:
-        return
-
-    availability = subprocess.run(
-        ["/usr/bin/bash", "./scripts/healthcheck.sh"], capture_output=True, text=True
-    )
-    await ctx.respond(ephemeral=True, content=f"```\n{availability.stdout}\n```")
-
-
 @bot.slash_command(description="get FATFS return code info")
 async def fatfserr(
     ctx: discord.ApplicationContext,
@@ -52,13 +42,49 @@ async def fatfserr(
         await ctx.defer(ephemeral=True)
     except discord.errors.NotFound:
         return
-    
+
     try:
         await ctx.respond(
             ephemeral=True, content=f"`{fatfserrlist[int(input.lstrip('-'))]}`"
         )
     except (IndexError, ValueError):
         await ctx.respond(ephemeral=True, content="invalid or unknown value")
+
+
+@bot.slash_command(description="gets the time nintendo thinks it is")
+async def nintendotime(ctx: discord.ApplicationContext):
+    try:
+        await ctx.defer(ephemeral=True)
+    except discord.errors.NotFound:
+        return
+
+    db = the_db()
+    device = SimpleCtrDevice(json_string=db.get_donor_json_ready_for_transfer()[1])
+    soap_device = CtrSoapManager(device, False)
+    helpers.CtrSoapCheckRegister(soap_device)
+
+    utc_0 = datetime.datetime.fromtimestamp(0, datetime.UTC)
+
+    acct_attributes = ias.GetAccountAttributesByProfile(soap_device, "MOVE_ACCT")
+    server_time = (
+        utc_0 + datetime.timedelta(milliseconds=acct_attributes.timestamp)
+    ).timestamp()
+    await ctx.respond(
+        ephemeral=True, content=f"<t:{int(server_time)}:T><t:{int(server_time)}:D>"
+    )
+
+
+@bot.slash_command()
+async def test(ctx: discord.ApplicationContext):
+    myDB = the_db()
+    myDB.cursor.execute("SELECT * FROM donors WHERE name = 'blueness_187687.json'")
+    result = myDB.cursor.fetchall()
+    if result == []:
+        print("hi")
+    else:
+        print(result)
+    await ctx.respond(ephemeral=True, content="done")
+    pass
 
 
 @bot.event
@@ -76,3 +102,5 @@ bot.load_extension("cogs.soupman")
 bot.load_extension("cogs.soap_stuff")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
+
+print("exiting")

@@ -1,4 +1,4 @@
-# generictestbot
+# frank-bot
 if you're reading this you already know how to set up the autosoap script
 ...so do that
 
@@ -11,6 +11,6 @@ oh and don't forget the DB stuff
 # Credits
 - ToxicAven for all of soupman
 - pycord devs
-- starlitskies for the autosoap script
+- starlitskies for the autosoap script (used as inspiration)
 - lugioalma for cleaninty
 - probably more

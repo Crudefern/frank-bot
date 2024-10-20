@@ -3,6 +3,8 @@ from cleaninty.ctr.soap.manager import CtrSoapManager
 from cleaninty.ctr.soap import helpers, ias
 from cleaninty.nintendowifi.soapenvelopebase import SoapCodeError
 from cleaninty.ctr.ninja import NinjaManager, NinjaException
+from .db_abstractor import the_db
+import json
 
 
 class cleaninty_abstractor:
@@ -109,7 +111,7 @@ class cleaninty_abstractor:
             True,
         )
 
-        result_string += "Performing (a real!) transfer...\n"
+        result_string += "Performing transfer...\n"
         ias.MoveAccount(
             soap_source,
             soap_target.device_id,
@@ -120,6 +122,57 @@ class cleaninty_abstractor:
 
         result_string += "System transfer complete!"
         return source_json, donor_json, result_string
+
+    def do_transfer_with_donor(self, source_json, resultStr):
+        myDB = the_db()
+        source_json_object = json.loads(source_json)
+        donor_json_name, donor_json = myDB.get_donor_json_ready_for_transfer()
+        donor_json_object = json.loads(donor_json)
+
+        donor_region_change = source_json_object["region"]
+        donor_country_change = source_json_object["country"]
+        donor_language_change = source_json_object["language"]
+
+        if donor_json_object["region"] != source_json_object["region"]:
+            resultStr += "Source and target regions do not match, changing...\n"
+            donor_json, resultStr = self.eshop_region_change(
+                json_string=donor_json,
+                region=donor_region_change,
+                country=donor_country_change,
+                language=donor_language_change,
+                result_string=resultStr,
+            )
+
+        source_json, donor_json, resultStr = self.do_system_transfer(
+            source_json=source_json, donor_json=donor_json, result_string=resultStr
+        )
+        donor_json = self.clean_json(donor_json)
+        myDB.update_donor(donor_json_name, donor_json)
+        self.refresh_donor_lt_time(donor_json_name)
+
+        return source_json, donor_json_name, resultStr
+
+    def refresh_donor_lt_time(self, name):
+        myDB = the_db()
+        myDB.cursor.execute(
+            "SELECT * FROM donors WHERE name = %s",
+            (name,),
+        )
+        donor_json = self.cursor.fetchone()[1]
+        last_transferred = self.get_last_moved_time(donor_json)
+        myDB.cursor.execute(
+            "UPDATE donors SET last_transferred = %s WHERE name = %s",
+            (last_transferred, name),
+        )
+        myDB.connection.commit()
+
+    def clean_json(self, json_string):
+        json_object = json.loads(json_string)
+        try:
+            del json_object["titles"]
+        except Exception:
+            pass
+        return json.dumps(json_object)
 
 
 def _run_unregister(device, soap_device, result_string):
