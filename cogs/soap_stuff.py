@@ -26,7 +26,6 @@ class cleaninty_stuff(commands.Cog):
             str,
             description="the serial on the sticker, use 'skip' to skip the check (only skip if u smart)",
             max_length=11,
-            min_length=10
         ),
         essentialexefs: discord.Option(
             discord.Attachment,
@@ -73,6 +72,9 @@ class cleaninty_stuff(commands.Cog):
 
             if serial == "SKIP":
                 resultStr += "skipping serial check\n"
+
+            if len(serial) != 4 or 10 or 11:
+                await ctx.respond(ephemeral=True, content="invalid serial length, must be 10 or 11 characters long")
 
             elif serial[10] != soap_serial:
                 resultStr += f"secinfo serial and given serial do not match!\nsecinfo: {soap_serial}\ngiven: {serial}"
@@ -394,7 +396,7 @@ def generate_json(  # thanks soupman
 
 
 def get_json_serial(json_string: str) -> str:
-    json_secinfo = b64decode(str(json.loads(json_string)["secinfo"]).encode("ascii"))
+    json_secinfo = b64decode(str(json.loads(json_string)["secureinfo"]).encode("ascii"))
     serial_bytes = bytes(json_secinfo[0x102:0x112]).replace(b"\x00", b"")
     return serial_bytes.upper().decode("utf-8")
 
