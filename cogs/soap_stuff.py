@@ -23,8 +23,10 @@ class cleaninty_stuff(commands.Cog):
         self,
         ctx: discord.ApplicationContext,
         serial: discord.Option(
-            discord.Attachment,
+            str,
             description="the serial on the sticker, use 'skip' to skip the check (only skip if u smart)",
+            max_length=11,
+            min_length=10
         ),
         essentialexefs: discord.Option(
             discord.Attachment,
