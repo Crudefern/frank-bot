@@ -1,4 +1,7 @@
 # frank-bot
+
+i got tired of the git shenanigans so this branch is abandoned
+
 if you're reading this you already know how to set up the autosoap script
 ...so do that
 
