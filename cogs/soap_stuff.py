@@ -73,7 +73,7 @@ class cleaninty_stuff(commands.Cog):
             if serial == "SKIP":
                 resultStr += "skipping serial check\n"
 
-            if len(serial) != 4 or 10 or 11:
+            if len(serial) != (4 or 10 or 11):
                 await ctx.respond(ephemeral=True, content="invalid serial length, must be 10 or 11 characters long")
 
             elif serial[10] != soap_serial:
