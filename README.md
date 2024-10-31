@@ -14,3 +14,7 @@ oh and don't forget the DB stuff
 - starlitskies for the autosoap script (used as inspiration)
 - lugioalma for cleaninty
 - probably more
+
+
+
+psst, i hid a secret somewhere, good luck finding it

@@ -1,41 +1,48 @@
 import asyncio
+import datetime
 import discord
 import json
-import datetime
-from io import BytesIO, StringIO
-from discord.ext import commands
+from base64 import b64decode
 from cleaninty.ctr.simpledevice import SimpleCtrDevice
 from cleaninty.ctr.soap.manager import CtrSoapManager
 from cleaninty.ctr.soap import helpers
 from cleaninty.nintendowifi.soapenvelopebase import SoapCodeError
+from discord.ext import commands
+from io import BytesIO, StringIO
 from pyctr.type.exefs import ExeFSReader
 from .abstractors.cleaninty_abstractor import cleaninty_abstractor
 from .abstractors.db_abstractor import the_db
 
 
-class cleaninty_stuff(
-    commands.Cog
-):  # create a class for our cog that inherits from commands.Cog
-    # this class is used to create a cog, which is a module that can be added to the bot
-
-    def __init__(
-        self, bot
-    ):  # this is a special method that is called when the cog is loaded
+class cleaninty_stuff(commands.Cog):
+    def __init__(self, bot):
         self.bot = bot
 
     @discord.slash_command(description="does a soap")
     async def doasoap(
         self,
         ctx: discord.ApplicationContext,
-        essentialexefs: discord.Option(discord.Attachment, required=False),
-        source_json: discord.Option(discord.Attachment, required=False),
+        serial: discord.Option(
+            discord.Attachment,
+            description="the serial on the sticker, use 'skip' to skip the check (only skip if u smart)",
+        ),
+        essentialexefs: discord.Option(
+            discord.Attachment,
+            required=False,
+            description="...the essential.exefs of the console to soap",
+        ),
+        source_json: discord.Option(
+            discord.Attachment,
+            required=False,
+            description="...the .json of the console to soap",
+        ),
     ):
         try:
             await ctx.defer(ephemeral=True)
         except discord.errors.NotFound:
             return
         print("doing soap, do not exit...")
-        resultStr = "```"
+        resultStr = str("```")
 
         if essentialexefs is not None:
             try:
@@ -50,11 +57,28 @@ class cleaninty_stuff(
             soap_json = await source_json.read()
         else:
             print("done")
-            ctx.respond(
+            await ctx.respond(
                 ephemeral=True,
                 content="uh... what? you didn't send a .json or .exefs, try again",
             )
             return
+
+        if serial is not None:
+            soap_serial = get_json_serial(
+                soap_json
+            ).upper()  # .upper() is just for consistency
+            serial = str(serial).upper()
+
+            if serial == "SKIP":
+                resultStr += "skipping serial check\n"
+
+            elif serial[10] != soap_serial:
+                resultStr += f"secinfo serial and given serial do not match!\nsecinfo: {soap_serial}\ngiven: {serial}"
+                resultStr += "nothing has been done to any donors or the soapee\n```"
+                ctx.respond(ephemeral=True, content=resultStr)
+                return
+            else:
+                resultStr += "secinfo serial and given serial match, continuing\n"
 
         try:
             dev = SimpleCtrDevice(json_string=soap_json)
@@ -175,6 +199,9 @@ class cleaninty_stuff(
         ctx: discord.ApplicationContext,
         donor_json_file: discord.Option(discord.Attachment, required=False),
         donor_exefs_file: discord.Option(discord.Attachment, required=False),
+        note: discord.Option(
+            str, required=False, description="any notes you want attached to the donor"
+        ),
     ):
         try:
             await ctx.defer(ephemeral=True)
@@ -213,10 +240,16 @@ class cleaninty_stuff(
             )
             return
 
-        if donorcheck(donor_json):
+        if not donorcheck(donor_json):
             await ctx.respond(
                 ephemeral=True,
                 content="not a valid donor!\nif you believe this to be a mistake contact crudefern",
+            )
+            return
+
+        if len(note) > 128:
+            await ctx.respond(
+                ephemeral=True, content="note too long! max is 128 characters"
             )
             return
 
@@ -271,6 +304,7 @@ class cleaninty_stuff(
             json=cleaninty.clean_json(donor_json),
             last_transferred=cleaninty.get_last_moved_time(donor_json),
             uploader=ctx.author.id,
+            note=note,
         )
 
         await ctx.respond(
@@ -279,26 +313,53 @@ class cleaninty_stuff(
         )
         print(f"{ctx.author.id} uploaded {donor_name} to the db")
 
+    @discord.slash_command(description="get the info of a donor")
+    async def donorinfo(
+        self, ctx: discord.ApplicationContext, name: discord.Option(str)
+    ):
+        try:
+            await ctx.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            return
 
-def donorcheck(input_json):
-    """Checks for a valid donor .json as input"""
+        myDB = the_db()
+        embed = discord.Embed(
+            color=discord.Color.green(), title=f"# info about `{name}`"
+        )
+
+        donor = myDB.read_index(table="donors", index_field_name="name", index=name)
+        uploader = await ctx.bot.fetch_user(donor[3])
+        embed.set_thumbnail(url=uploader.display_avatar.url)
+
+        if donor is None:
+            await ctx.respond(ephemeral=True, content=f"`{name}` not found")
+            return
+
+        embed.add_field(name="Uploader:", value=uploader.name)
+        embed.add_field(name="Last transfer time:", value=f"<t:{donor[2]}:f>")
+        embed.add_field(name="Note:", value=donor[4])
+
+        await ctx.respond(ephemeral=True, embed=embed)
+
+
+def donorcheck(input_json: str) -> bool:
     try:
         input_json_obj = json.loads(input_json)
     except json.decoder.JSONDecodeError:
-        return 1
+        return False
 
     if len(input_json_obj["otp"]) != 344:
-        return 1
+        return False
     if len(input_json_obj["msed"]) != 428:
-        return 1
+        return False
     if len(input_json_obj["region"]) != 3:
-        return 1
-    return 0
+        return False
+    return True
 
 
 def generate_json(  # thanks soupman
     essential,
-):
+) -> str:
     try:
         reader = ExeFSReader(BytesIO(essential))
     except Exception:
@@ -330,5 +391,11 @@ def generate_json(  # thanks soupman
     return generated_json
 
 
-def setup(bot):
+def get_json_serial(json_string: str) -> str:
+    json_secinfo = b64decode(str(json.loads(json_string)["secinfo"]).encode("ascii"))
+    serial_bytes = bytes(json_secinfo[0x102:0x112]).replace(b"\x00", b"")
+    return serial_bytes.upper().decode("utf-8")
+
+
+def setup(bot: discord.Bot):
     bot.add_cog(cleaninty_stuff(bot))

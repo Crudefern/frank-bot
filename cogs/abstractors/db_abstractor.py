@@ -1,7 +1,7 @@
-import mysql.connector
-import os
 import datetime
 from dotenv import load_dotenv
+import mysql.connector
+import os
 
 
 class the_db:
@@ -15,28 +15,30 @@ class the_db:
         )
         self.cursor = self.connection.cursor()
 
-    def exit(self):
+    def exit(self) -> None:
         self.connection.commit()
         self.connection.close()
         self.cursor.close()
 
-    def write_donor(self, name, json, last_transferred, uploader):
-        sql = "INSERT INTO donors (name, json_data, last_transferred, uploader) VALUES (%s, %s, %s, %s)"
-        val = (name, json, last_transferred, uploader)
+    def write_donor(
+        self, name: str, json: str, last_transferred: int, uploader: str, note: str
+    ) -> None:
+        sql = "INSERT INTO donors (name, json_data, last_transferred, uploader, note) VALUES (%s, %s, %s, %s, %s)"
+        val = (name, json, last_transferred, uploader, note)
 
         self.cursor.execute(sql, val)
 
         self.connection.commit()
 
-    def update_donor(self, name, json):
+    def update_donor(self, name, json) -> None:
         sql = "UPDATE donors SET json_data = %s WHERE name = %s"
         self.cursor.execute(sql, (json, name))
         self.connection.commit()
 
-    def get_donor_json_ready_for_transfer(self):
+    def get_donor_json_ready_for_transfer(self) -> tuple[str, str]:
         utc_time = datetime.datetime.now(datetime.UTC)
         utc_time_ready_for_transfer = int(utc_time.timestamp()) - 604800
-        
+
         # this fixes something but i'm not sure what
         try:
             self.cursor.fetchall()
@@ -56,15 +58,15 @@ class the_db:
 
         return result[0], result[1]
 
-    def read_index(self, table, index_field_name, index):
+    def read_index(self, table: str, index_field_name: str, index):
         # this fixes something but i'm not sure what
         try:
             self.cursor.fetchall()
         except Exception:
             pass
 
-        sql = "SELECT * FROM %s WHERE %s = %s"
-        val = (table, index_field_name, index)
+        sql = f"SELECT * FROM {table} WHERE {index_field_name} = %s"
+        val = (index,)
 
         self.cursor.execute(sql, val)
 

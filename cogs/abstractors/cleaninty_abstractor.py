@@ -1,16 +1,16 @@
+import json
 from cleaninty.ctr.simpledevice import SimpleCtrDevice
 from cleaninty.ctr.soap.manager import CtrSoapManager
 from cleaninty.ctr.soap import helpers, ias
 from cleaninty.nintendowifi.soapenvelopebase import SoapCodeError
 from cleaninty.ctr.ninja import NinjaManager, NinjaException
 from .db_abstractor import the_db
-import json
 
 
 class cleaninty_abstractor:
     def eshop_region_change(
-        self, json_string, region, country, language, result_string
-    ):
+        self, json_string: str, region: str, country: str, language: str, result_string: str
+    ) -> tuple[str, str]:
         device = SimpleCtrDevice(json_string=json_string)
         soap_device = CtrSoapManager(device, False)
 
@@ -49,7 +49,7 @@ class cleaninty_abstractor:
 
         return device.serialize_json(), result_string
 
-    def delete_eshop_account(self, json_string, result_string):
+    def delete_eshop_account(self, json_string: str, result_string: str) -> tuple[str, str]:
         result_string += "Initializing console...\n"
         device = SimpleCtrDevice(json_string=json_string)
         soap_device = CtrSoapManager(device, False)
@@ -74,7 +74,7 @@ class cleaninty_abstractor:
 
         return device.serialize_json(), result_string
 
-    def get_last_moved_time(self, json_string):
+    def get_last_moved_time(self, json_string: str) -> int:
         device = SimpleCtrDevice(json_string=json_string)
         soap_device = CtrSoapManager(device, False)
         helpers.CtrSoapCheckRegister(soap_device)
@@ -83,10 +83,10 @@ class cleaninty_abstractor:
         acct_attributes = ias.GetAccountAttributesByProfile(soap_device, "MOVE_ACCT")
 
         for i in acct_attributes.accountattributes:
-            if i[0] == "MoveAccountLastMovedDate":
-                return (int(i[1]) if i[1] else 0) / 1000
+            if i.name == "MoveAccountLastMovedDate":
+                return (int(i.value) if i.value else 0) / 1000
 
-    def do_system_transfer(self, source_json, donor_json, result_string):
+    def do_system_transfer(self, source_json: str, donor_json: str, result_string: str) -> tuple[str, str, str]:
         source = SimpleCtrDevice(json_string=source_json)
         soap_source = CtrSoapManager(source, False)
         target = SimpleCtrDevice(json_string=donor_json)
@@ -123,7 +123,7 @@ class cleaninty_abstractor:
         result_string += "System transfer complete!"
         return source_json, donor_json, result_string
 
-    def do_transfer_with_donor(self, source_json, resultStr):
+    def do_transfer_with_donor(self, source_json: str, resultStr: str) -> tuple[str, str, str]:
         myDB = the_db()
         source_json_object = json.loads(source_json)
         donor_json_name, donor_json = myDB.get_donor_json_ready_for_transfer()
@@ -152,13 +152,13 @@ class cleaninty_abstractor:
 
         return source_json, donor_json_name, resultStr
 
-    def refresh_donor_lt_time(self, name):
+    def refresh_donor_lt_time(self, name: str) -> None:
         myDB = the_db()
         myDB.cursor.execute(
             "SELECT * FROM donors WHERE name = %s",
             (name,),
         )
-        donor_json = self.cursor.fetchone()[1]
+        donor_json = myDB.cursor.fetchone()[1]
         last_transferred = self.get_last_moved_time(donor_json)
         myDB.cursor.execute(
             "UPDATE donors SET last_transferred = %s WHERE name = %s",
@@ -166,7 +166,7 @@ class cleaninty_abstractor:
         )
         myDB.connection.commit()
 
-    def clean_json(self, json_string):
+    def clean_json(self, json_string: str) -> str:
         json_object = json.loads(json_string)
         try:
             del json_object["titles"]
@@ -175,7 +175,7 @@ class cleaninty_abstractor:
         return json.dumps(json_object)
 
 
-def _run_unregister(device, soap_device, result_string):
+def _run_unregister(device: SimpleCtrDevice, soap_device: CtrSoapManager, result_string: str) -> str:
     try:
         ias.Unregister(soap_device, ias.GetChallenge(soap_device).challenge)
         soap_device.unregister_account()

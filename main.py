@@ -7,6 +7,7 @@ from cleaninty.ctr.soap import helpers, ias
 from dotenv import load_dotenv
 from cogs.abstractors.db_abstractor import the_db
 
+
 bot = discord.Bot()
 load_dotenv()
 
@@ -36,7 +37,7 @@ fatfserrlist = (
 @bot.slash_command(description="get FATFS return code info")
 async def fatfserr(
     ctx: discord.ApplicationContext,
-    input: discord.Option(name="input", required=True, description="the value"),
+    input: discord.Option(int, description="the value"),
 ):
     try:
         await ctx.defer(ephemeral=True)
@@ -74,19 +75,6 @@ async def nintendotime(ctx: discord.ApplicationContext):
     )
 
 
-@bot.slash_command()
-async def test(ctx: discord.ApplicationContext):
-    myDB = the_db()
-    myDB.cursor.execute("SELECT * FROM donors WHERE name = 'blueness_187687.json'")
-    result = myDB.cursor.fetchall()
-    if result == []:
-        print("hi")
-    else:
-        print(result)
-    await ctx.respond(ephemeral=True, content="done")
-    pass
-
-
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} successfully!")
@@ -98,9 +86,20 @@ async def on_ready():
     await bot.change_presence(activity=discord.Game(name="I HAS ...MANY THINGS"))
 
 
+@bot.event
+async def on_application_command_error(
+    ctx: discord.ApplicationContext, error: discord.DiscordException
+):
+    await ctx.respond(
+        ephemeral=True,
+        content="an error has occurred, please do not attempt to run the command you just ran again",
+    )
+    raise error
+
+
 bot.load_extension("cogs.soupman")
 bot.load_extension("cogs.soap_stuff")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
 
-print("exiting")
+print("\nexiting")
